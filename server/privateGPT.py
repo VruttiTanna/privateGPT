@@ -1,7 +1,5 @@
 import streamlit as st
-import requests
 import os
-import glob
 from typing import List
 from langchain.chains import RetrievalQA
 from langchain.embeddings import HuggingFaceEmbeddings
@@ -23,7 +21,6 @@ from langchain.document_loaders import (
 )
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.llms import GPT4All
-from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
 load_dotenv()
 
@@ -31,11 +28,6 @@ load_dotenv()
 st.set_page_config(page_title="LangChain Demo")
 
 # Define the Chroma settings
-# CHROMA_SETTINGS = {
-#     "chroma_db_impl": "duckdb+parquet",
-#     "persist_directory": "db/",
-#     "anonymized_telemetry": False,
-# }
 from chromadb.config import Settings
 
 # Define the Chroma settings
@@ -43,9 +35,8 @@ CHROMA_SETTINGS = Settings(
     chroma_db_impl='duckdb+parquet',
     persist_directory="db/",
     anonymized_telemetry=False,
-    chroma_api_impl='mock'
+    chroma_api_impl='rest'
 )
-
 
 embeddings_model_name = os.environ.get("EMBEDDINGS_MODEL_NAME")
 persist_directory = os.environ.get("PERSIST_DIRECTORY")
@@ -75,15 +66,6 @@ class MyElmLoader(UnstructuredEmailLoader):
 
         return doc
 
-# def upload_doc(document):
-#     if document is not None:
-#         filename = document.name
-#         save_path = os.path.join('source_documents', filename)
-#         with open(save_path, "wb") as f:
-#             f.write(document.getbuffer())
-#         return "Document upload successful"
-#     return "No selected file", 400
-
 # Map file extensions to document loaders and their arguments
 LOADER_MAPPING = {
     ".csv": (CSVLoader, {}),
@@ -101,50 +83,6 @@ LOADER_MAPPING = {
     ".txt": (TextLoader, {"encoding": "utf8"}),
 }
 
-# @st.cache(suppress_st_warning=True, allow_output_mutation=True)
-# def load_single_document(file_path: str) -> Document:
-#     ext = "." + file_path.rsplit(".", 1)[-1]
-#     if ext in LOADER_MAPPING:
-#         loader_class, loader_args = LOADER_MAPPING[ext]
-#         loader = loader_class(file_path, **loader_args)
-#         return loader.load()[0]
-
-#     raise ValueError(f"Unsupported file extension '{ext}'")
-
-# @st.cache(suppress_st_warning=True, allow_output_mutation=True)
-# def load_documents(source_dir: str) -> List[Document]:
-#     # Loads all documents from source documents directory
-#     all_files = []
-#     for ext in LOADER_MAPPING:
-#         all_files.extend(
-#             glob.glob(os.path.join(source_dir, f"**/*{ext}"), recursive=True)
-#         )
-#     return [load_single_document(file_path) for file_path in all_files]
-
-# def ingest_data():
-#     # Load environment variables
-#     persist_directory = os.environ.get("PERSIST_DIRECTORY")
-#     source_directory = os.environ.get("SOURCE_DIRECTORY", "source_documents")
-#     embeddings_model_name = os.environ.get("EMBEDDINGS_MODEL_NAME")
-
-#     # Load documents and split into chunks
-#     st.write(f"Loading documents from {source_directory}")
-#     chunk_size = 500
-#     chunk_overlap = 50
-#     documents = load_documents(source_directory)
-#     text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-#     texts = text_splitter.split_documents(documents)
-#     st.write(f"Loaded {len(documents)} documents from {source_directory}")
-#     st.write(f"Split into {len(texts)} chunks of text (max. {chunk_size} characters each)")
-
-#     # Create embeddings
-#     embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
-
-#     # Create and store locally vectorstore
-#     db = Chroma.from_documents(texts, embeddings, persist_directory=persist_directory, client_settings=CHROMA_SETTINGS)
-#     db.persist()
-#     db = None
-#     st.success("Ingestion completed successfully.")
 @st.cache(suppress_st_warning=True, allow_output_mutation=True)
 def load_single_document(file_path: str) -> Document:
     ext = "." + file_path.rsplit(".", 1)[-1]
@@ -153,163 +91,51 @@ def load_single_document(file_path: str) -> Document:
         loader = loader_class(file_path, **loader_args)
         return loader.load()[0]
 
-    raise ValueError(f"Unsupported file extension '{ext}'")
+    raise ValueError(f"No document loader found for file extension: {ext}")
 
-@st.cache(suppress_st_warning=True, allow_output_mutation=True)
-def load_documents(source_dir: str) -> List[Document]:
-    # Loads all documents from source documents directory
-    all_files = []
-    for ext in LOADER_MAPPING:
-        all_files.extend(
-            glob.glob(os.path.join(source_dir, f"**/*{ext}"), recursive=True)
-        )
-    return [load_single_document(file_path) for file_path in all_files]
 
-def ingest_data():
-    # Load environment variables
-    source_directory = os.environ.get("SOURCE_DIRECTORY", "source_documents")
-    embeddings_model_name = os.environ.get("EMBEDDINGS_MODEL_NAME")
+def get_answer(query: str):
+    global llm
 
-    # Load documents and split into chunks
-    st.write(f"Loading documents from {source_directory}")
-    chunk_size = 500
-    chunk_overlap = 50
-    documents = load_documents(source_directory)
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-    texts = text_splitter.split_documents(documents)
-    st.write(f"Loaded {len(documents)} documents from {source_directory}")
-    st.write(f"Split into {len(texts)} chunks of text (max. {chunk_size} characters each)")
-
-    # Create embeddings
-    embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
-
-    # Create and store locally vectorstore
-    db = Chroma.from_documents(texts, embeddings, persist_directory=persist_directory)
-    db.persist()
-    db = None
-    st.success("Ingestion completed successfully.")
-
-# def get_answer(query):
-#     embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
-#     db = Chroma(persist_directory=persist_directory, embedding_function=embeddings)
-#     retriever = db.as_retriever()
-#     if llm is None:
-#         return "Model not downloaded", 400
-#     qa = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever, return_source_documents=True)
-#     if query is not None and query != "":
-#         res = qa(query)
-#         answer, docs = res["result"], res["source_documents"]
-
-#         source_data = []
-#         for document in docs:
-#             source_data.append({"name": document.metadata["source"]})
-
-#         return query, answer, source_data
-
-#     return "Empty Query", 400
-from langchain.chains import RetrievalQA
-from langchain.vectorstores import Chroma
-from langchain.embeddings import HuggingFaceEmbeddings
-
-def get_answer(query):
-    if query:
-        vector_store = Chroma(persist_directory=persist_directory, client_settings=CHROMA_SETTINGS)
-        retriever = vector_store.as_retriever()
-        question_embedding_model = HuggingFaceEmbeddings(model_name=embeddings_model_name)
+    if llm is None:
         qa = RetrievalQA(
-            combine_documents_chain=None,
-            retriever=retriever,
-            model=None,
-            question_embedding_model=question_embedding_model,
-            vector_store=vector_store
+            combine_documents_chain=[
+                Chroma(persist_directory=persist_directory, client_settings=CHROMA_SETTINGS)
+            ],
+            retriever=Chroma(persist_directory=persist_directory, client_settings=CHROMA_SETTINGS),
+            model=GPT4All,
+            question_embedding_model=HuggingFaceEmbeddings(embeddings_model_name),
+            vector_store=Chroma(persist_directory=persist_directory, client_settings=CHROMA_SETTINGS),
         )
-        res = qa.query(query)
-        answer = res["answer"]
-        docs = res["result"], res["source_documents"]
 
-        source_data = []
-        if docs:
-            for document in docs:
-                source_data.append({"name": document.metadata["source"]})
+        qa.load_model(
+            model_type=model_type,
+            model_path=model_path,
+            model_n_ctx=int(model_n_ctx),
+        )
 
-        return query, answer, source_data
+        llm = qa.llm
+        llm.load()
 
-    return "Empty Query", None, None
+    answer = llm.answer(query)
+    source_data = llm.get_data(query)
 
+    return query, answer, source_data
 
-import io
-import os
-
-def upload_doc(document):
-    if document is not None:
-        filename = document.name
-        save_dir = "source_documents"
-        os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
-        save_path = os.path.join(save_dir, filename)
-        file_bytes = document.read()
-        with io.open(save_path, "wb") as f:
-            f.write(file_bytes)
-        return "Document upload successful"
-    return "No selected file", 400
-
-
-
-def download_and_save():
-    url = "https://gpt4all.io/models/ggml-gpt4all-j-v1.3-groovy.bin"  # Specify the URL of the resource to download
-    filename = "ggml-gpt4all-j-v1.3-groovy.bin"  # Specify the name for the downloaded file
-    models_folder = "models"  # Specify the name of the folder inside the Flask app root
-
-    if not os.path.exists(models_folder):
-        os.makedirs(models_folder)
-
-    response = requests.get(url, stream=True)
-    total_size = int(response.headers.get("content-length", 0))
-    bytes_downloaded = 0
-    file_path = f"{models_folder}/{filename}"
-
-    with open(file_path, "wb") as f:
-        for chunk in response.iter_content(chunk_size=1024):
-            if chunk:
-                f.write(chunk)
-                bytes_downloaded += len(chunk)
-
-                # Display download progress
-                progress = bytes_downloaded / total_size
-                st.progress(progress)
-
-    return file_path
 
 def main():
-    global llm
-    st.title("LangChain Demo")
-    st.subheader("Upload a Document")
-    document = st.file_uploader("Choose a file", type=["txt", "pdf", "docx"])
-    if st.button("Upload"):
-        upload_doc(document)
+    st.title("PrivateGPT - Language Model Demo")
 
-    st.subheader("Download GPT4All Model")
-    if st.button("Download"):
-        st.text("Downloading...")
-        file_path = download_and_save()
-        st.success(f"Model downloaded and saved at {file_path}")
-        llm = GPT4All(model_path=file_path, model_type=model_type, model_n_ctx=model_n_ctx)
-        st.success("GPT4All model loaded successfully.")
-
-    st.subheader("Ingest Data")
-    if st.button("Ingest"):
-        ingest_data()
-
-    st.subheader("Ask a Question")
-    query = st.text_input("Enter your question")
-    if st.button("Submit"):
-        question, answer, source_data = get_answer(query)
-        st.write(f"Question: {question}")
-        st.write(f"Answer: {answer}")
-
-        if source_data:
-            st.write("Source Documents:")
-            for document in source_data:
-                st.write(f"- {document['name']}")
+    query = st.text_input("Enter your question:")
+    if st.button("Ask"):
+        if query:
+            question, answer, source_data = get_answer(query)
+            st.markdown(f"**Question:** {question}")
+            st.markdown(f"**Answer:** {answer}")
+            if source_data:
+                st.markdown("**Source Documents:**")
+                for doc in source_data:
+                    st.markdown(f"- {doc}")
 
 if __name__ == "__main__":
     main()
