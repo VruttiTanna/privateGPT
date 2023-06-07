@@ -31,11 +31,21 @@ load_dotenv()
 st.set_page_config(page_title="LangChain Demo")
 
 # Define the Chroma settings
-CHROMA_SETTINGS = {
-    "chroma_db_impl": "duckdb+parquet",
-    "persist_directory": "db/",
-    "anonymized_telemetry": False,
-}
+# CHROMA_SETTINGS = {
+#     "chroma_db_impl": "duckdb+parquet",
+#     "persist_directory": "db/",
+#     "anonymized_telemetry": False,
+# }
+from chromadb.config import Settings
+
+# Define the Chroma settings
+CHROMA_SETTINGS = Settings(
+    chroma_db_impl='duckdb+parquet',
+    persist_directory="db/",
+    anonymized_telemetry=False,
+    chroma_api_impl='default',  # Add this line to specify the Chroma API implementation
+)
+
 
 embeddings_model_name = os.environ.get("EMBEDDINGS_MODEL_NAME")
 persist_directory = os.environ.get("PERSIST_DIRECTORY")
