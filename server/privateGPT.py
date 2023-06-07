@@ -4,7 +4,6 @@ import requests
 import os
 import glob
 from typing import List
-from streamlit.uploaded_file_manager import UploadedFile
 from langchain.chains import RetrievalQA
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import Chroma
@@ -63,6 +62,14 @@ class MyElmLoader(UnstructuredEmailLoader):
 
         return doc
 
+def upload_doc(document):
+    if document is not None:
+        filename = document.name
+        save_path = os.path.join('source_documents', filename)
+        with open(save_path, "wb") as f:
+            f.write(document.getbuffer())
+        return "Document upload successful"
+    return "No selected file", 400
 
 # Map file extensions to document loaders and their arguments
 LOADER_MAPPING = {
@@ -196,7 +203,7 @@ ingest_data()
 
 st.title("Document Ingestion and QA System")
 
-uploaded_file = st.file_uploader("Upload Document")
+uploaded_file = st.file_uploader("Upload Document", type=["pdf", "txt"])
 
 if uploaded_file is not None:
     result = upload_doc(uploaded_file)
