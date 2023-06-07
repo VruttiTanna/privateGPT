@@ -90,13 +90,14 @@ def load_single_document(file_path: str) -> Document:
         loader_class, loader_args = LOADER_MAPPING[ext]
         loader = loader_class(file_path, **loader_args)
         return loader.load()[0]
-
-    raise ValueError(f"No loader found for file extension: {ext}")
+    else:
+        raise ValueError(f"No loader found for file extension: {ext}")
 
 def load_documents(files: List["st.uploaded_file_manager.UploadedFile"]) -> List[Document]:
     documents = []
     for file in files:
         file_path = os.path.join("uploaded_files", file.name)
+        os.makedirs("uploaded_files", exist_ok=True)
         with open(file_path, "wb") as f:
             f.write(file.getvalue())
 
