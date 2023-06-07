@@ -156,7 +156,7 @@ def get_answer(query):
     return "Empty Query", 400
 
 def upload_doc(document):
-    if document.filename == "":
+    if document.name == '':
         return "No selected file", 400
 
     filename = document.filename
