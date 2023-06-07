@@ -155,15 +155,15 @@ def get_answer(query):
 
     return "Empty Query", 400
 
-def upload_doc(document):
-    if document.name == '':
-        return "No selected file", 400
+# def upload_doc(document):
+#     if document.name == '':
+#         return "No selected file", 400
 
-    filename = document.filename
-    save_path = os.path.join("source_documents", filename)
-    document.save(save_path)
+#     filename = document.name
+#     save_path = os.path.join("source_documents", filename)
+#     document.save(save_path)
 
-    return "Document upload successful"
+#     return "Document upload successful"
 
 def download_and_save():
     url = "https://gpt4all.io/models/ggml-gpt4all-j-v1.3-groovy.bin"  # Specify the URL of the resource to download
