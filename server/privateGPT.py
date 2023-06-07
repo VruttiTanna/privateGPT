@@ -68,7 +68,7 @@ class MyElmLoader(UnstructuredEmailLoader):
 def upload_doc(document):
     if document is not None:
         filename = document.name
-        save_path = os.path.join("source_documents", filename)
+        save_path = os.path.join('source_documents', filename)
         with open(save_path, "wb") as f:
             f.write(document.getbuffer())
         return "Document upload successful"
