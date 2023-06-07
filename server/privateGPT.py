@@ -191,7 +191,7 @@ def ingest_data():
 
 def get_answer(query):
     embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
-    db = Chroma(persist_directory=persist_directory, embedding_function=embeddings, client_settings=CHROMA_SETTINGS)
+    db = Chroma(persist_directory=persist_directory, embedding_function=embeddings)
     retriever = db.as_retriever()
     if llm is None:
         return "Model not downloaded", 400
@@ -207,6 +207,7 @@ def get_answer(query):
         return query, answer, source_data
 
     return "Empty Query", 400
+
 
 import io
 import os
