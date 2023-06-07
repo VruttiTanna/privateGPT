@@ -8,8 +8,7 @@ from dotenv import load_dotenv
 import requests
 import streamlit as st
 from typing import List
-from langchain.document import Document
-
+from langchain.docstore.document import Document
 load_dotenv()
 
 # Set Streamlit configuration
