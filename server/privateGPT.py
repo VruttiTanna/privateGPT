@@ -143,7 +143,7 @@ def main():
         if query:
             documents = load_documents(uploaded_files) if uploaded_files else []
             for document in documents:
-                st.markdown(f"**Uploaded Document:** {document.get_metadata('filename')}")
+                st.markdown(f"**Uploaded Document:** {document.name}")
             question, answer, source_data = get_answer(query)
             st.markdown(f"**Question:** {question}")
             st.markdown(f"**Answer:** {answer}")
