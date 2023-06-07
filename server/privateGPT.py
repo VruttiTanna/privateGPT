@@ -101,6 +101,50 @@ LOADER_MAPPING = {
     ".txt": (TextLoader, {"encoding": "utf8"}),
 }
 
+# @st.cache(suppress_st_warning=True, allow_output_mutation=True)
+# def load_single_document(file_path: str) -> Document:
+#     ext = "." + file_path.rsplit(".", 1)[-1]
+#     if ext in LOADER_MAPPING:
+#         loader_class, loader_args = LOADER_MAPPING[ext]
+#         loader = loader_class(file_path, **loader_args)
+#         return loader.load()[0]
+
+#     raise ValueError(f"Unsupported file extension '{ext}'")
+
+# @st.cache(suppress_st_warning=True, allow_output_mutation=True)
+# def load_documents(source_dir: str) -> List[Document]:
+#     # Loads all documents from source documents directory
+#     all_files = []
+#     for ext in LOADER_MAPPING:
+#         all_files.extend(
+#             glob.glob(os.path.join(source_dir, f"**/*{ext}"), recursive=True)
+#         )
+#     return [load_single_document(file_path) for file_path in all_files]
+
+# def ingest_data():
+#     # Load environment variables
+#     persist_directory = os.environ.get("PERSIST_DIRECTORY")
+#     source_directory = os.environ.get("SOURCE_DIRECTORY", "source_documents")
+#     embeddings_model_name = os.environ.get("EMBEDDINGS_MODEL_NAME")
+
+#     # Load documents and split into chunks
+#     st.write(f"Loading documents from {source_directory}")
+#     chunk_size = 500
+#     chunk_overlap = 50
+#     documents = load_documents(source_directory)
+#     text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+#     texts = text_splitter.split_documents(documents)
+#     st.write(f"Loaded {len(documents)} documents from {source_directory}")
+#     st.write(f"Split into {len(texts)} chunks of text (max. {chunk_size} characters each)")
+
+#     # Create embeddings
+#     embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
+
+#     # Create and store locally vectorstore
+#     db = Chroma.from_documents(texts, embeddings, persist_directory=persist_directory, client_settings=CHROMA_SETTINGS)
+#     db.persist()
+#     db = None
+#     st.success("Ingestion completed successfully.")
 @st.cache(suppress_st_warning=True, allow_output_mutation=True)
 def load_single_document(file_path: str) -> Document:
     ext = "." + file_path.rsplit(".", 1)[-1]
@@ -123,7 +167,6 @@ def load_documents(source_dir: str) -> List[Document]:
 
 def ingest_data():
     # Load environment variables
-    persist_directory = os.environ.get("PERSIST_DIRECTORY")
     source_directory = os.environ.get("SOURCE_DIRECTORY", "source_documents")
     embeddings_model_name = os.environ.get("EMBEDDINGS_MODEL_NAME")
 
@@ -141,7 +184,7 @@ def ingest_data():
     embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
 
     # Create and store locally vectorstore
-    db = Chroma.from_documents(texts, embeddings, persist_directory=persist_directory, client_settings=CHROMA_SETTINGS)
+    db = Chroma.from_documents(texts, embeddings, persist_directory=persist_directory)
     db.persist()
     db = None
     st.success("Ingestion completed successfully.")
