@@ -156,16 +156,20 @@ def get_answer(query):
     return "Empty Query", 400
 
 import io
+import os
 
 def upload_doc(document):
     if document is not None:
         filename = document.name
-        save_path = os.path.join('source_documents', filename)
+        save_dir = "source_documents"
+        os.makedirs(save_dir, exist_ok=True)  # Create the directory if it doesn't exist
+        save_path = os.path.join(save_dir, filename)
         file_bytes = document.read()
         with io.open(save_path, "wb") as f:
             f.write(file_bytes)
         return "Document upload successful"
     return "No selected file", 400
+
 
 
 def download_and_save():
