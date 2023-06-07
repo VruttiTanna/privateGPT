@@ -207,7 +207,7 @@ def ingest_data():
 #         return query, answer, source_data
 
 #     return "Empty Query", 400
-from langchain.retrievalqa import RetrievalQA
+from langchain.chains import RetrievalQA
 from langchain.vectorstores import Chroma
 from langchain.embeddings import HuggingFaceEmbeddings
 
