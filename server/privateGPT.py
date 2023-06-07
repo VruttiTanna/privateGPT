@@ -21,12 +21,13 @@ model_path = os.environ.get("MODEL_PATH")
 model_n_ctx = os.environ.get("MODEL_N_CTX")
 llm = None
 
-def load_documents(files: List["st.uploaded_file_manager.UploadedFile"]) -> List[Document]:
+def load_documents(files: List[st.uploaded_file_manager.UploadedFile]) -> List[Document]:
     documents = []
     for file in files:
         document = Document(file.name, file.getvalue())
         documents.append(document)
     return documents
+
 
 def get_answer(query: str):
     global llm
@@ -48,22 +49,16 @@ def get_answer(query: str):
     return query, answer, source_data
 
 def main():
-    st.title("PrivateGPT - Language Model Demo")
-
-    uploaded_files = st.file_uploader("Upload Document(s)", accept_multiple_files=True)
-    query = st.text_input("Enter your question:")
-    if st.button("Ask"):
-        if query:
-            documents = load_documents(uploaded_files) if uploaded_files else []
-            for document in documents:
-                st.markdown(f"**Uploaded Document:** {document.name}")
-            question, answer, source_data = get_answer(query)
-            st.markdown(f"**Question:** {question}")
-            st.markdown(f"**Answer:** {answer}")
-            if source_data:
-                st.markdown("**Source Documents:**")
-                for doc in source_data:
-                    st.markdown(f"- {doc}")
+    st.title("Private GPT")
+    uploaded_files = st.file_uploader("Upload Documents", accept_multiple_files=True)
+    documents = load_documents(uploaded_files) if uploaded_files else []
+    
+    if documents:
+        st.markdown("**Uploaded Documents:**")
+        for document in documents:
+            st.markdown(f"- {document.name}")
+    else:
+        st.markdown("No documents uploaded.")
 
 if __name__ == "__main__":
     main()
