@@ -22,8 +22,8 @@ from langchain.document_loaders import (
     UnstructuredWordDocumentLoader,
 )
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from gpt4all import GPT4All
-from gpt4all.callbacks import StreamingStdOutCallbackHandler
+from langchain.llms import GPT4All
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
 load_dotenv()
 
