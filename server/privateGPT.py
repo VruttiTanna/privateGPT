@@ -8,6 +8,7 @@ from langchain.chains import RetrievalQA
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import Chroma
 from langchain.docstore.document import Document
+from dotenv import load_dotenv
 from langchain.document_loaders import (
     CSVLoader,
     EverNoteLoader,
