@@ -207,12 +207,21 @@ def ingest_data():
 #         return query, answer, source_data
 
 #     return "Empty Query", 400
+from langchain.retrievalqa import RetrievalQA
+from langchain.vectorstores import Chroma
+from langchain.embeddings import HuggingFaceEmbeddings
+
 def get_answer(query):
     if query:
+        vector_store = Chroma(persist_directory=persist_directory, client_settings=CHROMA_SETTINGS)
+        retriever = vector_store.as_retriever()
+        question_embedding_model = HuggingFaceEmbeddings(model_name=embeddings_model_name)
         qa = RetrievalQA(
-            vector_store=Chroma(),
-            model=llm,
-            question_embedding_model=HuggingFaceEmbeddings(),
+            combine_documents_chain=None,
+            retriever=retriever,
+            model=None,
+            question_embedding_model=question_embedding_model,
+            vector_store=vector_store
         )
         res = qa.query(query)
         answer = res["answer"]
