@@ -1,16 +1,14 @@
-from flask import Flask,jsonify, render_template, flash, redirect, url_for, Markup, request
-from flask_cors import CORS
-from dotenv import load_dotenv
-from langchain.chains import RetrievalQA
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain.vectorstores import Chroma
-from langchain.llms import GPT4All, LlamaCpp
+import streamlit as st
+import openai
+import requests
 import os
 import glob
 from typing import List
-import requests
-
+from streamlit.uploaded_file_manager import UploadedFile
+from langchain.chains import RetrievalQA
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.vectorstores import Chroma
+from langchain.docstore.document import Document
 from langchain.document_loaders import (
     CSVLoader,
     EverNoteLoader,
@@ -24,15 +22,13 @@ from langchain.document_loaders import (
     UnstructuredPowerPointLoader,
     UnstructuredWordDocumentLoader,
 )
-
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Chroma
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.docstore.document import Document
-from constants import CHROMA_SETTINGS
 
-app = Flask(__name__)
-CORS(app)
+# Set up your OpenAI API credentials
+openai.api_key = "YOUR_API_KEY"
+
+# Set Streamlit configuration
+st.set_page_config(page_title="LangChain Demo")
 
 load_dotenv()
 
@@ -87,7 +83,7 @@ LOADER_MAPPING = {
     # Add more mappings for other file extensions and loaders as needed
 }
 
-
+@st.cache(suppress_st_warning=True, allow_output_mutation=True)
 def load_single_document(file_path: str) -> Document:
     ext = "." + file_path.rsplit(".", 1)[-1]
     if ext in LOADER_MAPPING:
@@ -97,7 +93,7 @@ def load_single_document(file_path: str) -> Document:
 
     raise ValueError(f"Unsupported file extension '{ext}'")
 
-
+@st.cache(suppress_st_warning=True, allow_output_mutation=True)
 def load_documents(source_dir: str) -> List[Document]:
     # Loads all documents from source documents directory
     all_files = []
@@ -107,7 +103,6 @@ def load_documents(source_dir: str) -> List[Document]:
         )
     return [load_single_document(file_path) for file_path in all_files]
 
-@app.route('/ingest', methods=['GET'])
 def ingest_data():
     # Load environment variables
     persist_directory = os.environ.get('PERSIST_DIRECTORY')
@@ -115,14 +110,14 @@ def ingest_data():
     embeddings_model_name = os.environ.get('EMBEDDINGS_MODEL_NAME')
 
     # Load documents and split in chunks
-    print(f"Loading documents from {source_directory}")
+    st.write(f"Loading documents from {source_directory}")
     chunk_size = 500
     chunk_overlap = 50
     documents = load_documents(source_directory)
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     texts = text_splitter.split_documents(documents)
-    print(f"Loaded {len(documents)} documents from {source_directory}")
-    print(f"Split into {len(texts)} chunks of text (max. {chunk_size} characters each)")
+    st.write(f"Loaded {len(documents)} documents from {source_directory}")
+    st.write(f"Split into {len(texts)} chunks of text (max. {chunk_size} characters each)")
 
     # Create embeddings
     embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
@@ -131,11 +126,9 @@ def ingest_data():
     db = Chroma.from_documents(texts, embeddings, persist_directory=persist_directory, client_settings=CHROMA_SETTINGS)
     db.persist()
     db = None
-    return jsonify(response="Success")
-    
-@app.route('/get_answer', methods=['POST'])
-def get_answer():
-    query = request.json
+    st.success("Ingestion completed successfully.")
+
+def get_answer(query):
     embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
     db = Chroma(persist_directory=persist_directory, embedding_function=embeddings, client_settings=CHROMA_SETTINGS)
     retriever = db.as_retriever()
@@ -150,28 +143,20 @@ def get_answer():
         for document in docs:
              source_data.append({"name":document.metadata["source"]})
 
-        return jsonify(query=query,answer=answer,source=source_data)
+        return query, answer, source_data
 
     return "Empty Query",400
 
-
-@app.route('/upload_doc', methods=['POST'])
-def upload_doc():
-    
-    if 'document' not in request.files:
-        return jsonify(response="No document file found"), 400
-    
-    document = request.files['document']
+def upload_doc(document):
     if document.filename == '':
-        return jsonify(response="No selected file"), 400
+        return "No selected file", 400
 
     filename = document.filename
     save_path = os.path.join('source_documents', filename)
     document.save(save_path)
 
-    return jsonify(response="Document upload successful")
+    return "Document upload successful"
 
-@app.route('/download_model', methods=['GET'])
 def download_and_save():
     url = 'https://gpt4all.io/models/ggml-gpt4all-j-v1.3-groovy.bin'  # Specify the URL of the resource to download
     filename = 'ggml-gpt4all-j-v1.3-groovy.bin'  # Specify the name for the downloaded file
@@ -184,18 +169,18 @@ def download_and_save():
     bytes_downloaded = 0
     file_path = f'{models_folder}/{filename}'
     if os.path.exists(file_path):
-        return jsonify(response="Download completed")
+        return "Download completed"
 
     with open(file_path, 'wb') as file:
         for chunk in response.iter_content(chunk_size=4096):
             file.write(chunk)
             bytes_downloaded += len(chunk)
             progress = round((bytes_downloaded / total_size) * 100, 2)
-            print(f'Download Progress: {progress}%')
+            st.write(f'Download Progress: {progress}%')
     global llm
     callbacks = [StreamingStdOutCallbackHandler()]
     llm = GPT4All(model=model_path, n_ctx=model_n_ctx, backend='gptj', callbacks=callbacks, verbose=False)
-    return jsonify(response="Download completed")
+    return "Download completed"
 
 def load_model():
     filename = 'ggml-gpt4all-j-v1.3-groovy.bin'  # Specify the name for the downloaded file
@@ -206,7 +191,26 @@ def load_model():
         callbacks = [StreamingStdOutCallbackHandler()]
         llm = GPT4All(model=model_path, n_ctx=model_n_ctx, backend='gptj', callbacks=callbacks, verbose=False)
 
-if __name__ == "__main__":
-  load_model()
-  print("LLM0", llm)
-  app.run(host="0.0.0.0", debug = False)
+load_model()
+ingest_data()
+
+st.title("Document Ingestion and QA System")
+
+uploaded_file = st.file_uploader("Upload Document")
+
+if uploaded_file is not None:
+    result = upload_doc(uploaded_file)
+    st.write(result)
+
+query = st.text_input("Enter your question")
+if st.button("Get Answer"):
+    query, answer, source_data = get_answer(query)
+    st.write(f"Question: {query}")
+    st.write(f"Answer: {answer}")
+    st.write("Source Documents:")
+    for document in source_data:
+        st.write(document["name"])
+
+if st.button("Download Model"):
+    result = download_and_save()
+    st.write(result)
