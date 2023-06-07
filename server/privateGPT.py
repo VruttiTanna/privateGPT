@@ -189,24 +189,43 @@ def ingest_data():
     db = None
     st.success("Ingestion completed successfully.")
 
+# def get_answer(query):
+#     embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
+#     db = Chroma(persist_directory=persist_directory, embedding_function=embeddings)
+#     retriever = db.as_retriever()
+#     if llm is None:
+#         return "Model not downloaded", 400
+#     qa = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever, return_source_documents=True)
+#     if query is not None and query != "":
+#         res = qa(query)
+#         answer, docs = res["result"], res["source_documents"]
+
+#         source_data = []
+#         for document in docs:
+#             source_data.append({"name": document.metadata["source"]})
+
+#         return query, answer, source_data
+
+#     return "Empty Query", 400
 def get_answer(query):
-    embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
-    db = Chroma(persist_directory=persist_directory, embedding_function=embeddings)
-    retriever = db.as_retriever()
-    if llm is None:
-        return "Model not downloaded", 400
-    qa = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever, return_source_documents=True)
-    if query is not None and query != "":
-        res = qa(query)
-        answer, docs = res["result"], res["source_documents"]
+    if query:
+        qa = RetrievalQA(
+            vector_store=Chroma(),
+            model=llm,
+            question_embedding_model=HuggingFaceEmbeddings(),
+        )
+        res = qa.query(query)
+        answer = res["answer"]
+        docs = res["result"], res["source_documents"]
 
         source_data = []
-        for document in docs:
-            source_data.append({"name": document.metadata["source"]})
+        if docs:
+            for document in docs:
+                source_data.append({"name": document.metadata["source"]})
 
         return query, answer, source_data
 
-    return "Empty Query", 400
+    return "Empty Query", None, None
 
 
 import io
