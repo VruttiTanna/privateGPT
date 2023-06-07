@@ -43,7 +43,7 @@ CHROMA_SETTINGS = Settings(
     chroma_db_impl='duckdb+parquet',
     persist_directory="db/",
     anonymized_telemetry=False,
-    chroma_api_impl='default',  # Add this line to specify the Chroma API implementation
+    chroma_api_impl='rest',  # Set to 'rest' or 'local'
 )
 
 
