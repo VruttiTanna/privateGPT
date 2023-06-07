@@ -89,7 +89,8 @@ def load_single_document(file_path: str) -> Document:
     if ext in LOADER_MAPPING:
         loader_class, loader_args = LOADER_MAPPING[ext]
         loader = loader_class(file_path, **loader_args)
-        return loader.load()[0]
+        documents = loader.load()
+        return documents[0] if documents else None
     else:
         raise ValueError(f"No loader found for file extension: {ext}")
 
@@ -143,7 +144,7 @@ def main():
         if query:
             documents = load_documents(uploaded_files) if uploaded_files else []
             for document in documents:
-                st.markdown(f"**Uploaded Document:** {document.name}")
+                st.markdown(f"**Uploaded Document:** {document.file_path}")
             question, answer, source_data = get_answer(query)
             st.markdown(f"**Question:** {question}")
             st.markdown(f"**Answer:** {answer}")
