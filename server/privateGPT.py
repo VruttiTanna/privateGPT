@@ -94,6 +94,19 @@ def load_single_document(file_path: str) -> Document:
     raise ValueError(f"No document loader found for file extension: {ext}")
 
 
+def load_documents(files: List[st.uploaded_file_manager.UploadedFile]) -> List[Document]:
+    documents = []
+    for file in files:
+        file_path = os.path.join("uploaded_files", file.name)
+        with open(file_path, "wb") as f:
+            f.write(file.getvalue())
+
+        document = load_single_document(file_path)
+        documents.append(document)
+
+    return documents
+
+
 def get_answer(query: str):
     global llm
 
@@ -126,9 +139,13 @@ def get_answer(query: str):
 def main():
     st.title("PrivateGPT - Language Model Demo")
 
+    uploaded_files = st.file_uploader("Upload Document(s)", accept_multiple_files=True)
     query = st.text_input("Enter your question:")
     if st.button("Ask"):
         if query:
+            documents = load_documents(uploaded_files) if uploaded_files else []
+            for document in documents:
+                st.markdown(f"**Uploaded Document:** {document.get_metadata('filename')}")
             question, answer, source_data = get_answer(query)
             st.markdown(f"**Question:** {question}")
             st.markdown(f"**Answer:** {answer}")
