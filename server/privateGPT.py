@@ -91,10 +91,9 @@ def load_single_document(file_path: str) -> Document:
         loader = loader_class(file_path, **loader_args)
         return loader.load()[0]
 
-    raise ValueError(f"No document loader found for file extension: {ext}")
+    raise ValueError(f"No loader found for file extension: {ext}")
 
-
-def load_documents(files: List[st.uploaded_file_manager.UploadedFile]) -> List[Document]:
+def load_documents(files: List["st.uploaded_file_manager.UploadedFile"]) -> List[Document]:
     documents = []
     for file in files:
         file_path = os.path.join("uploaded_files", file.name)
@@ -105,7 +104,6 @@ def load_documents(files: List[st.uploaded_file_manager.UploadedFile]) -> List[D
         documents.append(document)
 
     return documents
-
 
 def get_answer(query: str):
     global llm
@@ -134,7 +132,6 @@ def get_answer(query: str):
     source_data = llm.get_data(query)
 
     return query, answer, source_data
-
 
 def main():
     st.title("PrivateGPT - Language Model Demo")
