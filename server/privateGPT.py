@@ -1,11 +1,15 @@
 import streamlit as st
 import os
-from typing import List
+from dotenv import load_dotenv
 from langchain.chains import RetrievalQA
 from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.vectorstores import Chroma
-from langchain.docstore.document import Document
-from dotenv import load_dotenv
+from langchain.llms import GPT4All, LlamaCpp
+import glob
+from typing import List
+import requests
+
 from langchain.document_loaders import (
     CSVLoader,
     EverNoteLoader,
@@ -19,19 +23,24 @@ from langchain.document_loaders import (
     UnstructuredPowerPointLoader,
     UnstructuredWordDocumentLoader,
 )
-from langchain.llms import GPT4All
+
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.vectorstores import Chroma
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.docstore.document import Document
+from constants import CHROMA_SETTINGS
 
 load_dotenv()
 
-# Set Streamlit configuration
-st.set_page_config(page_title="LangChain Demo")
-
 embeddings_model_name = os.environ.get("EMBEDDINGS_MODEL_NAME")
-persist_directory = os.environ.get("PERSIST_DIRECTORY")
-model_type = os.environ.get("MODEL_TYPE")
-model_path = os.environ.get("MODEL_PATH")
-model_n_ctx = os.environ.get("MODEL_N_CTX")
+persist_directory = os.environ.get('PERSIST_DIRECTORY')
+
+model_type = os.environ.get('MODEL_TYPE')
+model_path = os.environ.get('MODEL_PATH')
+model_n_ctx = os.environ.get('MODEL_N_CTX')
 llm = None
+
+from constants import CHROMA_SETTINGS
 
 class MyElmLoader(UnstructuredEmailLoader):
     """Wrapper to fallback to text/plain when default does not work"""
@@ -42,9 +51,9 @@ class MyElmLoader(UnstructuredEmailLoader):
             try:
                 doc = UnstructuredEmailLoader.load(self)
             except ValueError as e:
-                if "text/html content not found in email" in str(e):
+                if 'text/html content not found in email' in str(e):
                     # Try plain text
-                    self.unstructured_kwargs["content_source"] = "text/plain"
+                    self.unstructured_kwargs["content_source"]="text/plain"
                     doc = UnstructuredEmailLoader.load(self)
                 else:
                     raise
@@ -54,9 +63,11 @@ class MyElmLoader(UnstructuredEmailLoader):
 
         return doc
 
+
 # Map file extensions to document loaders and their arguments
 LOADER_MAPPING = {
     ".csv": (CSVLoader, {}),
+    # ".docx": (Docx2txtLoader, {}),
     ".doc": (UnstructuredWordDocumentLoader, {}),
     ".docx": (UnstructuredWordDocumentLoader, {}),
     ".enex": (EverNoteLoader, {}),
@@ -69,77 +80,132 @@ LOADER_MAPPING = {
     ".ppt": (UnstructuredPowerPointLoader, {}),
     ".pptx": (UnstructuredPowerPointLoader, {}),
     ".txt": (TextLoader, {"encoding": "utf8"}),
+    # Add more mappings for other file extensions and loaders as needed
 }
 
-@st.cache(suppress_st_warning=True, allow_output_mutation=True)
+@st.cache(allow_output_mutation=True)
 def load_single_document(file_path: str) -> Document:
     ext = "." + file_path.rsplit(".", 1)[-1]
     if ext in LOADER_MAPPING:
         loader_class, loader_args = LOADER_MAPPING[ext]
         loader = loader_class(file_path, **loader_args)
-        documents = loader.load()
-        return documents[0] if documents else None
-    else:
-        raise ValueError(f"No loader found for file extension: {ext}")
+        return loader.load()[0]
 
-def load_documents(files: List[st.runtime.uploaded_file_manager.UploadedFile]) -> List[Document]:
-    documents = []
-    for file in files:
-        file_path = os.path.join("uploaded_files", file.name)
-        os.makedirs("uploaded_files", exist_ok=True)
-        with open(file_path, "wb") as f:
-            f.write(file.getvalue())
+    raise ValueError(f"Unsupported file extension '{ext}'")
 
-        document = load_single_document(file_path)
-        documents.append(document)
 
-    return documents
+@st.cache(allow_output_mutation=True)
+def load_documents(source_dir: str) -> List[Document]:
+    # Loads all documents from source documents directory
+    all_files = []
+    for ext in LOADER_MAPPING:
+        all_files.extend(
+            glob.glob(os.path.join(source_dir, f"**/*{ext}"), recursive=True)
+        )
+    return [load_single_document(file_path) for file_path in all_files]
 
-def get_answer(query: str):
+def ingest_data():
+    # Load environment variables
+    persist_directory = os.environ.get('PERSIST_DIRECTORY')
+    source_directory = os.environ.get('SOURCE_DIRECTORY', 'source_documents')
+    embeddings_model_name = os.environ.get('EMBEDDINGS_MODEL_NAME')
+
+    # Load documents and split into chunks
+    st.write(f"Loading documents from {source_directory}")
+    chunk_size = 500
+    chunk_overlap = 50
+    documents = load_documents(source_directory)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    texts = text_splitter.split_documents(documents)
+    st.write(f"Loaded {len(documents)} documents from {source_directory}")
+    st.write(f"Split into {len(texts)} chunks of text (max. {chunk_size} characters each)")
+
+    # Create embeddings
+    embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
+    
+    # Create and store locally vectorstore
+    db = Chroma.from_documents(texts, embeddings, persist_directory=persist_directory, client_settings=CHROMA_SETTINGS)
+    db.persist()
+    db = None
+    st.write("Success")
+
+def get_answer(query):
+    embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
+    db = Chroma(persist_directory=persist_directory, embedding_function=embeddings, client_settings=CHROMA_SETTINGS)
+    retriever = db.as_retriever()
+    if llm==None:
+        return "Model not downloaded", 400    
+    qa = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever, return_source_documents=True)
+    if query!=None and query!="":
+        res = qa(query)
+        answer, docs = res['result'], res['source_documents']
+        
+        source_data =[]
+        for document in docs:
+             source_data.append({"name":document.metadata["source"]})
+
+        return query, answer, source_data
+
+    return "Empty Query",400
+
+def upload_doc(document):
+    if document is None:
+        return "No document file found", 400
+    
+    if document.filename == '':
+        return "No selected file", 400
+
+    filename = document.filename
+    save_path = os.path.join('source_documents', filename)
+    document.save(save_path)
+
+    return "Document upload successful"
+
+def download_and_save():
+    url = 'https://gpt4all.io/models/ggml-gpt4all-j-v1.3-groovy.bin'  # Specify the URL of the resource to download
+    filename = 'ggml-gpt4all-j-v1.3-groovy.bin'  # Specify the name for the downloaded file
+    models_folder = 'models'  # Specify the name of the folder inside the Streamlit app root
+
+    if not os.path.exists(models_folder):
+        os.makedirs(models_folder)
+    response = requests.get(url,stream=True)
+    total_size = int(response.headers.get('content-length', 0))
+    bytes_downloaded = 0
+    file_path = f'{models_folder}/{filename}'
+    if os.path.exists(file_path):
+        return "Download completed"
+
+    with open(file_path, 'wb') as file:
+        for chunk in response.iter_content(chunk_size=4096):
+            file.write(chunk)
+            bytes_downloaded += len(chunk)
+            progress = round((bytes_downloaded / total_size) * 100, 2)
+            st.write(f'Download Progress: {progress}%')
     global llm
+    callbacks = [StreamingStdOutCallbackHandler()]
+    llm = GPT4All(model=model_path, n_ctx=model_n_ctx, backend='gptj', callbacks=callbacks, verbose=False)
+    return "Download completed"
 
-    if llm is None:
-        qa = RetrievalQA(
-            combine_documents_chain=[
-                Chroma(persist_directory=persist_directory)
-            ],
-            retriever=Chroma(persist_directory=persist_directory),
-            model=GPT4All(),
-            question_embedding_model=HuggingFaceEmbeddings(embeddings_model_name),
-            vector_store=Chroma(persist_directory=persist_directory),
-        )
+def load_model():
+    filename = 'ggml-gpt4all-j-v1.3-groovy.bin'  # Specify the name for the downloaded file
+    models_folder = 'models'  # Specify the name of the folder inside the Streamlit app root
+    file_path = f'{models_folder}/{filename}'
+    if os.path.exists(file_path):
+        global llm
+        callbacks = [StreamingStdOutCallbackHandler()]
+        llm = GPT4All(model=model_path, n_ctx=model_n_ctx, backend='gptj', callbacks=callbacks, verbose=False)
 
-        qa.load_model(
-            model_type=model_type,
-            model_path=model_path,
-            model_n_ctx=int(model_n_ctx),
-        )
+load_model()
+st.write("LLM0", llm)
+ingest_data()
+st.write("Initialized")
 
-        llm = qa.llm
-        llm.load()
+uploaded_document = st.file_uploader("Upload Document")
+if uploaded_document is not None:
+    upload_doc_response = upload_doc(uploaded_document)
+    st.write(upload_doc_response)
 
-    answer = llm.answer(query)
-    source_data = llm.get_data(query)
-
-    return query, answer, source_data
-
-def main():
-    st.title("PrivateGPT - Language Model Demo")
-
-    uploaded_files = st.file_uploader("Upload Document(s)", accept_multiple_files=True)
-    query = st.text_input("Enter your question:")
-    if st.button("Ask"):
-        if query:
-            documents = load_documents(uploaded_files) if uploaded_files else []
-            for document in documents:
-                st.markdown(f"**Uploaded Document:** {document}")
-            question, answer, source_data = get_answer(query)
-            st.markdown(f"**Question:** {question}")
-            st.markdown(f"**Answer:** {answer}")
-            if source_data:
-                st.markdown("**Source Documents:**")
-                for doc in source_data:
-                    st.markdown(f"- {doc}")
-
-if __name__ == "__main__":
-    main()
+query = st.text_input("Query")
+if st.button("Get Answer"):
+    query_response = get_answer(query)
+    st.write(query_response)
