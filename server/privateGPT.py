@@ -35,9 +35,7 @@ CHROMA_SETTINGS = Settings(
     chroma_db_impl='duckdb+parquet',
     persist_directory="db/",
     anonymized_telemetry=False,
-    chroma_api_impl='rest',
-    chroma_server_host=os.environ.get("CHROMA_API_HOST"),
-    chroma_server_port=int(os.environ.get("CHROMA_API_PORT"))
+    chroma_api_impl='rest'
 )
 
 embeddings_model_name = os.environ.get("EMBEDDINGS_MODEL_NAME")
