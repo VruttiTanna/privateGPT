@@ -80,7 +80,7 @@ def load_single_document(file_path: str) -> Document:
     else:
         raise ValueError(f"No loader found for file extension: {ext}")
 
-def load_documents(files: List["st.uploaded_file_manager.UploadedFile"]) -> List[Document]:
+def load_documents(files: List[st.uploaded_file_manager.UploadedFile]) -> List[Document]:
     documents = []
     for file in files:
         file_path = os.path.join("uploaded_files", file.name)
@@ -101,7 +101,7 @@ def get_answer(query: str):
             combine_documents_chain=[],
             retriever=Chroma(persist_directory=persist_directory),
             model=GPT4All,
-            question_embedding_model=HuggingFaceEmbeddings(embeddings_model_name),
+            question_embedding_model=HuggingFaceEmbeddings(),
             vector_store=Chroma(persist_directory=persist_directory),
         )
 
