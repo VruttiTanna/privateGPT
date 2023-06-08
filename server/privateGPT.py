@@ -19,8 +19,7 @@ from langchain.document_loaders import (
     UnstructuredPowerPointLoader,
     UnstructuredWordDocumentLoader,
 )
-from langchain.retrievers import BaseRetriever
-from langchain.combine_documents_chain import BaseCombineDocumentsChain
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.llms import GPT4All
 
 load_dotenv()
@@ -28,8 +27,22 @@ load_dotenv()
 # Set Streamlit configuration
 st.set_page_config(page_title="LangChain Demo")
 
+# Define the Chroma settings
+# from chromadb.config import Settings
+
+# Define the Chroma settings
+# CHROMA_SETTINGS = Settings(
+#     chroma_db_impl='duckdb+parquet',
+#     persist_directory="db/",
+#     anonymized_telemetry=False,
+#     chroma_api_impl='rest'
+# )
+
 embeddings_model_name = os.environ.get("EMBEDDINGS_MODEL_NAME")
 persist_directory = os.environ.get("PERSIST_DIRECTORY")
+model_type = os.environ.get("MODEL_TYPE")
+model_path = os.environ.get("MODEL_PATH")
+model_n_ctx = os.environ.get("MODEL_N_CTX")
 llm = None
 
 class MyElmLoader(UnstructuredEmailLoader):
@@ -81,7 +94,7 @@ def load_single_document(file_path: str) -> Document:
     else:
         raise ValueError(f"No loader found for file extension: {ext}")
 
-def load_documents(files: List[st.file_uploader]) -> List[Document]:
+def load_documents(files: List["st.uploaded_file_manager.UploadedFile"]) -> List[Document]:
     documents = []
     for file in files:
         file_path = os.path.join("uploaded_files", file.name)
@@ -99,17 +112,19 @@ def get_answer(query: str):
 
     if llm is None:
         qa = RetrievalQA(
-            combine_documents_chain=[],
-            retriever=None,  # Replace with a valid retriever instance
+            combine_documents_chain=[
+                Chroma(persist_directory=persist_directory, client_settings=CHROMA_SETTINGS)
+            ],
+            retriever=Chroma(persist_directory=persist_directory, client_settings=CHROMA_SETTINGS),
             model=GPT4All,
-            question_embedding_model=None,  # Replace with a valid embeddings model instance
-            vector_store=None,  # Replace with a valid vector store instance
+            question_embedding_model=HuggingFaceEmbeddings(embeddings_model_name),
+            vector_store=Chroma(persist_directory=persist_directory, client_settings=CHROMA_SETTINGS),
         )
 
         qa.load_model(
-            model_type="gpt4all",
-            model_path=None,
-            model_n_ctx=None,
+            model_type=model_type,
+            model_path=model_path,
+            model_n_ctx=int(model_n_ctx),
         )
 
         llm = qa.llm
