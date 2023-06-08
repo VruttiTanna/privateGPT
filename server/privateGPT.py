@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from langchain import DocumentLoader, Document
+from langchain.docstore.document import Document,DocumentLoader
 from gpt4all import GPT, set_random_seed
 
 # Set random seed for reproducibility
