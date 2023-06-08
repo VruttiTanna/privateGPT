@@ -29,9 +29,6 @@ st.set_page_config(page_title="LangChain Demo")
 
 embeddings_model_name = os.environ.get("EMBEDDINGS_MODEL_NAME")
 persist_directory = os.environ.get("PERSIST_DIRECTORY")
-model_type = os.environ.get("MODEL_TYPE")
-model_path = os.environ.get("MODEL_PATH")
-model_n_ctx = os.environ.get("MODEL_N_CTX")
 llm = None
 
 class MyElmLoader(UnstructuredEmailLoader):
@@ -100,19 +97,15 @@ def get_answer(query: str):
     global llm
 
     if llm is None:
+        retriever = Chroma(persist_directory=persist_directory)
+        vector_store = Chroma(persist_directory=persist_directory)
+
         qa = RetrievalQA(
-            combine_documents_chain=[],
-            retriever=Chroma(persist_directory=persist_directory),
             model=GPT4All,
             question_embedding_model=HuggingFaceEmbeddings(model_name=embeddings_model_name),
-            vector_store=Chroma(persist_directory=persist_directory),
         )
 
-        qa.load_model(
-            model_type=model_type,
-            model_path=model_path,
-            model_n_ctx=int(model_n_ctx),
-        )
+        qa.load_model(retriever=retriever, vector_store=vector_store)
 
         llm = qa.llm
         llm.load()
