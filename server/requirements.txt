@@ -48,7 +48,7 @@ itsdangerous==2.1.2
 Jinja2==3.1.2
 joblib==1.2.0
 langchain==0.0.181
-lark-parser==1.1.5
+lark-parser
 llama-cpp-python==0.1.50
 lxml==4.9.2
 lz4==4.3.2
