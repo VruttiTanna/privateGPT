@@ -105,7 +105,7 @@ def get_answer(query: str):
             ],
             retriever=Chroma(persist_directory=persist_directory, client_settings=None),
             model=GPT4All,
-            question_embedding_model=HuggingFaceEmbeddings(embeddings_model_name),
+            question_embedding_model=HuggingFaceEmbeddings(model_name=embeddings_model_name),
             vector_store=Chroma(persist_directory=persist_directory, client_settings=None),
         )
 
