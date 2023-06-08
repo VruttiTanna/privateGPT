@@ -19,7 +19,8 @@ from langchain.document_loaders import (
     UnstructuredPowerPointLoader,
     UnstructuredWordDocumentLoader,
 )
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.retrievers import BaseRetriever
+from langchain.combine_documents_chain import BaseCombineDocumentsChain
 from langchain.llms import GPT4All
 
 load_dotenv()
@@ -99,10 +100,10 @@ def get_answer(query: str):
     if llm is None:
         qa = RetrievalQA(
             combine_documents_chain=[],
-            retriever=Chroma(persist_directory=persist_directory),
+            retriever=None,  # Replace with a valid retriever instance
             model=GPT4All,
-            question_embedding_model=HuggingFaceEmbeddings(),
-            vector_store=Chroma(persist_directory=persist_directory),
+            question_embedding_model=None,  # Replace with a valid embeddings model instance
+            vector_store=None,  # Replace with a valid vector store instance
         )
 
         qa.load_model(
