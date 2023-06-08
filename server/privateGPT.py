@@ -1,21 +1,10 @@
 import streamlit as st
 import os
-import glob
-from typing import List
-from langchain.docstore.document import Document
-from langchain.document_loaders import (
-    CSVLoader,
-    EverNoteLoader,
-    PDFMinerLoader,
-    TextLoader,
-    UnstructuredEmailLoader,
-    UnstructuredEPubLoader,
-    UnstructuredHTMLLoader,
-    UnstructuredMarkdownLoader,
-    UnstructuredODTLoader,
-    UnstructuredPowerPointLoader,
-    UnstructuredWordDocumentLoader,
-)
+from langchain import DocumentLoader, Document
+from gpt4all import GPT, set_random_seed
+
+# Set random seed for reproducibility
+set_random_seed(42)
 
 # Load environment variables
 persist_directory = os.environ.get('PERSIST_DIRECTORY')
@@ -24,80 +13,40 @@ embeddings_model_name = os.environ.get('EMBEDDINGS_MODEL_NAME')
 model_path = os.environ.get('MODEL_PATH')
 model_n_ctx = int(os.environ.get('MODEL_N_CTX'))
 
-# Map file extensions to document loaders and their arguments
-LOADER_MAPPING = {
-    ".csv": (CSVLoader, {}),
-    ".doc": (UnstructuredWordDocumentLoader, {}),
-    ".docx": (UnstructuredWordDocumentLoader, {}),
-    ".enex": (EverNoteLoader, {}),
-    ".eml": (UnstructuredEmailLoader, {}),
-    ".epub": (UnstructuredEPubLoader, {}),
-    ".html": (UnstructuredHTMLLoader, {}),
-    ".md": (UnstructuredMarkdownLoader, {}),
-    ".odt": (UnstructuredODTLoader, {}),
-    ".pdf": (PDFMinerLoader, {}),
-    ".ppt": (UnstructuredPowerPointLoader, {}),
-    ".pptx": (UnstructuredPowerPointLoader, {}),
-    ".txt": (TextLoader, {"encoding": "utf8"}),
-    # Add more mappings for other file extensions and loaders as needed
-}
+# Initialize GPT model
+gpt = GPT(model_path, model_n_ctx)
 
-class CustomTextLoader:
-    @staticmethod
-    def load(file_path):
-        with open(file_path, "r", encoding="utf-8") as file:
-            content = file.read()
-        return [Document(content=content, metadata={})]
-
-def load_single_document(file_path: str) -> Document:
-    ext = "." + file_path.rsplit(".", 1)[-1]
-    if ext in LOADER_MAPPING:
-        loader_class, loader_args = LOADER_MAPPING[ext]
-        loader = loader_class(file_path, **loader_args)
-        return loader.load()[0]
-    raise ValueError(f"Unsupported file extension '{ext}'")
-
-def load_documents(source_dir: str) -> List[Document]:
-    # Loads all documents from the source documents directory
-    all_files = []
-    for ext in LOADER_MAPPING:
-        all_files.extend(glob.glob(os.path.join(source_dir, f"**/*{ext}"), recursive=True))
-    return [load_single_document(file_path) for file_path in all_files]
+# Initialize document loader
+document_loader = DocumentLoader()
 
 # Streamlit App
 st.title("PrivateGPT - Question Answering System")
 
 # File Upload
-uploaded_file = st.file_uploader("Upload a document", type=list(LOADER_MAPPING.keys()))
+uploaded_files = st.file_uploader("Upload document(s)", accept_multiple_files=True)
 
-if uploaded_file is not None:
-    file_contents = uploaded_file.read().decode("utf-8")
-    st.write("Uploaded file contents:")
-    st.code(file_contents)
+if uploaded_files:
+    documents = []
+    for uploaded_file in uploaded_files:
+        document = document_loader.load_file(uploaded_file)
+        documents.append(document)
 
-    # Process the uploaded document
-    document = Document(content=file_contents, metadata={})
-    texts = [document]
+    st.write(f"Loaded {len(documents)} document(s)")
+    st.write("Document(s):")
+    for document in documents:
+        st.write(document.metadata["filename"])
 
-    # Create embeddings
-    embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
+    # Process the document(s)
+    for document in documents:
+        # Process the document
+        # ...
 
-    # Create and store the vector store
-    db = Chroma.from_documents(texts, embeddings, persist_directory=persist_directory)
-    db.persist()
+        # Perform question answering
+        question = st.text_input("Enter your question")
+        if question:
+            # Perform question answering using GPT
+            answer = gpt.ask(question, document.content)
 
-    # Ask a question
-    question = st.text_input("Ask a question")
-    if st.button("Get Answer"):
-        if question.strip() != "":
-            # Get the answer using the loaded model
-            answer, source_data = get_answer(question, db)
+            # Display the answer
+            st.write("Question:", question)
             st.write("Answer:", answer)
-            st.write("Source Documents:")
-            for source in source_data:
-                st.write("- ", source.get("name"))
-        else:
-            st.warning("Please enter a question.")
-else:
-    st.warning("Please upload a document.")
-
