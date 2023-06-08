@@ -97,15 +97,19 @@ def get_answer(query: str):
     global llm
 
     if llm is None:
-        retriever = Chroma(persist_directory=persist_directory)
-        vector_store = Chroma(persist_directory=persist_directory)
-
         qa = RetrievalQA(
+            combine_documents_chain=[],
+            retriever=Chroma(persist_directory=persist_directory),
             model=GPT4All,
-            question_embedding_model=HuggingFaceEmbeddings(model_name=embeddings_model_name),
+            question_embedding_model=HuggingFaceEmbeddings(embeddings_model_name),
+            vector_store=Chroma(persist_directory=persist_directory),
         )
 
-        qa.load_model(retriever=retriever, vector_store=vector_store)
+        qa.load_model(
+            model_type="gpt4all",
+            model_path=None,
+            model_n_ctx=None,
+        )
 
         llm = qa.llm
         llm.load()
