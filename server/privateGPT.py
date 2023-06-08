@@ -27,17 +27,6 @@ load_dotenv()
 # Set Streamlit configuration
 st.set_page_config(page_title="LangChain Demo")
 
-# Define the Chroma settings
-from chromadb.config import Settings
-
-# Define the Chroma settings
-CHROMA_SETTINGS = Settings(
-    chroma_db_impl='duckdb+parquet',
-    persist_directory="db/",
-    anonymized_telemetry=False,
-    chroma_api_impl='rest'
-)
-
 embeddings_model_name = os.environ.get("EMBEDDINGS_MODEL_NAME")
 persist_directory = os.environ.get("PERSIST_DIRECTORY")
 model_type = os.environ.get("MODEL_TYPE")
@@ -112,13 +101,11 @@ def get_answer(query: str):
 
     if llm is None:
         qa = RetrievalQA(
-            combine_documents_chain=[
-                Chroma(persist_directory=persist_directory, client_settings=CHROMA_SETTINGS)
-            ],
-            retriever=Chroma(persist_directory=persist_directory, client_settings=CHROMA_SETTINGS),
+            combine_documents_chain=[],
+            retriever=Chroma(persist_directory=persist_directory),
             model=GPT4All,
             question_embedding_model=HuggingFaceEmbeddings(embeddings_model_name),
-            vector_store=Chroma(persist_directory=persist_directory, client_settings=CHROMA_SETTINGS),
+            vector_store=Chroma(persist_directory=persist_directory),
         )
 
         qa.load_model(
